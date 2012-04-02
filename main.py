@@ -86,9 +86,11 @@ def logout():
     return redirect(url_for("view_post"))
 
 @app.route("/about/")
+def about():
     return render_template("about.html")
 
 @app.route("/contact/")
+def contact():
     return render_template("contact.html")
 
 if __name__ == '__main__':
