@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+{% block content %}
+  <div class=container>
+    <div class=row>
+      <div class=span4>
+        <p>
+          Compose your response here.
+        </p>
+      </div>
+      <div class=span8>
+        <form class=form-horizontal method=post>
+          {{ form.csrf }}
+          <fieldset>
+            <legend>Compose post</legend>
+            {{ render_field(form.title) }}
+            {% call(tag) render_field(form.body) -%}
+              {%- if tag == 'help-block' %}
+                <img src="{{ url_for('static', filename='img/markdown.png') }}">
+              {% endif -%}
+            {%- endcall %}
+            {% call(tag) render_field(form.parents) -%}
+              {%- if tag == 'help-block' %}
+                <p>
+                  You can select up to three parent posts, provided no parent
+                  post is an ancestor of any other.
+                <p>
+                  If you know a little order theory then know that the 'reply'
+                  relationship is the
+                  <a href=http://en.wikipedia.org/wiki/Transitive_reduction>
+                  transitive reduction</a> of the 'ancestor' relationship
+                  which is a
+                  <a href=http://en.wikipedia.org/wiki/Well-quasi-ordering>
+                  well-quasi-ordering</a>.
+              {% endif -%}
+            {%- endcall %}
+          </fieldset>
+          <div class=form-actions>
+            <input class="btn btn-large btn-primary" type=submit value="Post">
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

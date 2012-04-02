@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+{% block content %}
+  <div class=container>
+    <div class=row>
+      <div class=span4>
+        <p>
+          Here you can log in to your DAGcuss account.
+        </p>
+        <p>
+          If you don't have an account you can <a href="/register/">register</a>.
+        </p>
+      </div>
+      <div class=span8>
+        <form class=form-horizontal method=post>
+          {{ form.csrf }}
+          <fieldset>
+            <legend>Log in</legend>
+            {{ render_field(form.username) }}
+            {{ render_field(form.password) }}
+          </fieldset>
+          <div class=form-actions>
+            <input class="btn btn-large btn-primary" type=submit value="Log in">
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

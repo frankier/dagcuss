@@ -1,0 +1,1 @@
+Bulbs has poor error handling eg Rexster can return 405 method not allowed when an incorrect id type is used but since it's not in RESPONSE_HANDLERS an obscure exception is thrown instead

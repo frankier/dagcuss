@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang=en>
+  <head>
+    <meta charset=utf-8>
+    <title>DAGcuss</title>
+    <meta name=viewport content="width=device-width, initial-scale=1.0">
+    <meta name=description content="DAGcuss is a forum with a difference. Like a threaded forum, a post can have multiple replies, but with DAGcuss you can have one post reply to multiple others!">
+    <meta name=author content="Frankie Robertson">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+    <link href="{{ url_for('static', filename='css/bootstrap.css') }}" rel=stylesheet>
+    <style type=text/css>
+      body {
+        padding-top: 60px;
+        padding-bottom: 40px;
+      }
+      .navbar .brand {
+        padding: 4px 20px;
+      }
+    </style>
+    <!--<link href="{{ url_for('static', filename='css/bootstrap-responsive.css) }}') }}" rel=stylesheet>-->
+
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class=container>
+          <a class="btn btn-navbar" data-toggle=collapse data-target=.nav-collapse>
+            <span class=icon-bar></span>
+            <span class=icon-bar></span>
+            <span class=icon-bar></span>
+          </a>
+          <a class=brand href=/><img alt=DAGcuss src={{ url_for('static', filename='img/logo.png') }}></a>
+          <div class=nav-collapse>
+            <ul class=nav>
+              <li class=active><a href=/>Forum</a></li>
+              <li><a href=/login/>Log in</a></li>
+              <li><a href=/logout/>Log out</a></li>
+              <li><a href=/register/>Register</a></li>
+              <li><a href=/about/>About</a></li>
+              <li><a href=/contact/>Contact</a></li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div>
+      </div>
+    </div>
+    {% block content %}
+    {% endblock %}
+    <div class=container>
+      <hr>
+      <footer>
+        <p>&copy; Frankie Robertson 2012</p>
+      </footer>
+    </div> <!-- /container -->
+    <script src="{{ url_for('static', filename='js/ender.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/raphael.js') }}"></script>
+    <script>
+      
+    </script>
+  </body>
+</html>

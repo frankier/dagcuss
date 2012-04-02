@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_formhelpers.html" import render_field %}
+{% block content %}
+  <div class=container>
+    <div class=row>
+      <div class=span4>
+        <p>
+          Here you can register for a DAGcuss account.
+        </p>
+        <p>
+          Yes, this is the only page!
+        </p>
+      </div>
+      <div class=span8>
+        {% if form.errors %}
+          <ul class=errors>
+            {% for error in form.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <form class=form-horizontal method=post action="{{ url_for('register') }}">
+          {{ form.csrf }}
+          <fieldset>
+            <legend>Register</legend>
+            {{ render_field(form.username) }}
+            {{ render_field(form.password) }}
+            {{ render_field(form.confirm) }}
+            {{ render_field(form.accept_tos) }}
+          </fieldset>
+          <div class=form-actions>
+            <input class=btn type=submit value="Register">
+            <a class=btn href="REFERER">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

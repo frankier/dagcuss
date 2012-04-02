@@ -1,0 +1,3 @@
+Reply to at most 3 posts.
+
+A "direct-reply" is the relation kept track of but this is really a trasitive reduction (http://en.wikipedia.org/wiki/Transitive_reduction), think Hasse diagram (http://en.wikipedia.org/wiki/Hasse_diagram), of the true reply relation which is a well-quasi-ordering http://en.wikipedia.org/wiki/Well-quasi-ordering (aka well pre-order [I think]).
