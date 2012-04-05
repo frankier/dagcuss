@@ -3,8 +3,8 @@
 from flask import Flask, flash, redirect, request, render_template, url_for, abort
 from flaskext.markdown import Markdown
 app = Flask(__name__)
-from secret import add_secret_stuff
-add_secret_stuff(app)
+from settings import add_settings
+add_settings(app)
 #app.jinja_options = {'ignore_errors': False}
 md = Markdown(app)
 
@@ -67,14 +67,13 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         # login and validate the user...
-        #user = graph.users.index.get_unique("username", form.username.data)
-        users = graph.users.index.lookup(username=form.username.data)
-        user = users.next()
-        #if not user:
-            #return render_template("login.html", form=form)
+        user = graph.users.index.get_unique(username=form.username.data, password=form.password.data)
+        #users = graph.users.index.lookup(username=form.username.data, password=form.password.data)
+        #user = users.next()
+        if not user:
+            flash("No such username and password.")
+            return render_template("login.html", form=form)
         login_user(user)
-        #graph.users.index.get_unique("username", form.username.data)
-        #graph.users.index.lookup(username=form.username.data)
         flash("Logged in successfully.")
         return redirect(request.args.get("next") or url_for("view_post"))
     return render_template("login.html", form=form)

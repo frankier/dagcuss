@@ -1,11 +1,12 @@
-from bulbs.rexster import Graph, Config
+from bulbs.rexster import Graph
 from bulbs.model import Node, Relationship
 from bulbs.property import Property, String, Integer, DateTime
 from bulbs.utils import current_datetime
 from flaskext.login import UserMixin
 
-config = Config('http://localhost:8182/graphs/dagcussdb')
-config.label_var = 'rel_label'
+from settings import get_config
+
+config = get_config()
 graph = Graph(config)
 
 def element_to_model(e, model_cls):
