@@ -1,6 +1,6 @@
 from bulbs.rexster import Graph
 from bulbs.model import Node, Relationship
-from bulbs.property import Property, String, Integer, DateTime
+from bulbs.property import Property, String, Integer, DateTime, Float
 from bulbs.utils import current_datetime
 from flaskext.login import UserMixin
 
@@ -37,6 +37,9 @@ class Post(Node):
     at = DateTime(default=current_datetime, nullable=False)
     root = Integer(default=0, nullable=False)
 
+    x = Float(default=0, nullable=False)
+    y = Float(default=0, nullable=False)
+
     def parents(self):
         return sorted([element_to_model(e, Post) for e in self.inV("reply")], key=lambda e: e.at, reverse=True)
 
@@ -72,12 +75,12 @@ g.v(id).as('get_parents').inE.filter{it.label == 'reply'}.outV.loop('get_parents
 
 class Posted(Relationship):
     # user 1 -> 0..* post
-    rel_label = "posted"
+    label = "posted"
 
 
 class Marked(Relationship):
     # user 1 -> 0..9 post
-    rel_label = "marked"
+    label = "marked"
 
     color = Integer(nullable=False)
 
@@ -85,7 +88,7 @@ class Marked(Relationship):
 class Reply(Relationship):
     # post_a 0    -> 1    post_b | if post_b.root
     # post_a 1..3 -> 0..* post_b | otherwise
-    rel_label = "reply"
+    label = "reply"
 
 graph.add_proxy("users", User)
 graph.add_proxy("posts", Post)
