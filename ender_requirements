@@ -1,28 +1,3 @@
-
-
-virtualenv
-
-Flask==0.8
-Flask-Login==0.1
-Flask-WTF==0.5.4
-Jinja2==2.6
-PyYAML==3.10
-WTForms==1.0.1
-Werkzeug==0.8.3
-httplib2==0.7.4
-python-dateutil==1.5
-pytz==2012b
-simplejson==2.4.0
-six==1.1.0
-ujson==1.18
-wsgiref==0.1.2
-
-+
-
-git clone https://Grimboy@github.com/Grimboy/bulbs.git bulbs
-
-Ender
-
 Active packages:
 ├── domready@0.2.11 - bullet proof DOM ready method
 ├── qwery@3.3.3 - blazing fast CSS3 query selector engine

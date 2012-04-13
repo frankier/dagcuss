@@ -1,0 +1,18 @@
+Flask==0.8
+Flask-Login==0.1
+Flask-Markdown==0.3
+Flask-WTF==0.5.4
+Jinja2==2.6
+Markdown==2.1.1
+PyYAML==3.10
+WTForms==1.0.1
+Werkzeug==0.8.3
+-e git://github.com/Grimboy/bulbs.git@06a4d1249ca86ee6164c0766b787561526f3bcfd#egg=bulbs-dev
+distribute==0.6.26
+httplib2==0.7.4
+python-dateutil==1.5
+pytz==2012b
+simplejson==2.4.0
+six==1.1.0
+ujson==1.18
+wsgiref==0.1.2
