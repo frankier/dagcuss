@@ -1,6 +1,6 @@
 from bulbs.rexster import Graph
 from bulbs.model import Node, Relationship
-from bulbs.property import Property, String, Integer, DateTime, Float
+from bulbs.property import String, Integer, DateTime, Float
 from bulbs.utils import current_datetime
 from flaskext.login import UserMixin
 
@@ -9,10 +9,12 @@ from settings import get_config
 config = get_config()
 graph = Graph(config)
 
+
 def element_to_model(e, model_cls):
     m = model_cls(e._client)
     m._initialize(e._result)
     return m
+
 
 class User(Node, UserMixin):
     element_type = "user"
@@ -41,23 +43,29 @@ class Post(Node):
     y = Float(default=0, nullable=False)
 
     def parents(self):
-        return sorted([element_to_model(e, Post) for e in self.inV("reply")], key=lambda e: e.at, reverse=True)
+        return sorted([element_to_model(e, Post) for e in self.inV("reply")],
+                      key=lambda e: e.at, reverse=True)
 
     def children(self):
-        return sorted([element_to_model(e, Post) for e in self.outV("reply")], key=lambda e: e.at, reverse=True)
+        return sorted([element_to_model(e, Post) for e in self.outV("reply")],
+                      key=lambda e: e.at, reverse=True)
 
     def poster(self):
         return [element_to_model(e) for e in self.InV("posted")]
 
     def has_ancestor_any(self, needles):
-        # TODO: Use aggregate/exclude to avoid searching the same parts of the tree twice
+        # TODO: Use aggregate/exclude to avoid searching the same parts of the
+        # tree twice
         script = (
 """
 needles = needle_ids.collect {g.v(it)}
-g.v(id).as('get_parents').inE.filter{it.label == 'reply'}.outV.loop('get_parents'){!needles.contains(it.object)}{needles.contains(it.object)}.id
+(g.v(id).as('get_parents').inE.filter{it.label == 'reply'}.outV.
+loop('get_parents'){!needles.contains(it.object)}
+{needles.contains(it.object)}.id)
 """[1:-1]
         )
-        params = {'id': self.eid, 'needle_ids': [needle.eid for needle in needles]}
+        params = {'id': self.eid,
+                  'needle_ids': [needle.eid for needle in needles]}
         result = graph.client.gremlin(script, params)
         if result.total_size > 0:
             ancestor_id = result.one().data
