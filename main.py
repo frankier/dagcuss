@@ -53,6 +53,8 @@ def view_post(post_id=None, page_num=None):
 @login_required
 def add_post():
     form = PostForm()
+    form.parents.choices = [(unicode(post.eid), unicode(post))
+                            for post in graph.posts.get_all()]
     if form.validate_on_submit():
         post = graph.posts.create(title=form.title.data, body=form.body.data)
         for parent in form.parents.data:

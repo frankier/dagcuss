@@ -8,9 +8,7 @@ class PostForm(Form):
     title = TextField('Title', [validators.Optional()],
                       description="100% optional")
     body = TextAreaField('Body', [validators.Required()])
-    parents = SelectMultipleField('Parents',
-                                  choices=[(unicode(post.eid), unicode(post))
-                                            for post in graph.posts.get_all()])
+    parents = SelectMultipleField('Parents')
     # TODO: make custom field since choices is currently kept in memory
 
     def validate_parents(form, field):
