@@ -1,13 +1,10 @@
 #!/usr/bin/env python
-import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'discussium.settings'
-import asyncore
-import socket
+import os, sys
+import zmq
 import asyncsubprocess
-import select
 import pygraphviz
-import traceback
 import logging
+
 from dagcuss.models import graph
 
 tracelevel = 3
@@ -27,34 +24,32 @@ def database_to_dot():
     digraph = pygraphviz.AGraph(directed=True, strict=False)
     for post in graph.posts.get_all():
         if post.x != None and post.y != None:
-            digraph.add_node('n%s' % (post.pk,), pos="%s,%s" % (post.x, post.y), shape="none", width="0.0", height="0.0")
+            digraph.add_node('n_%s' % (post.eid,), pos="%s,%s" % (post.x, post.y), shape="circle", width="1.0", height="1.0")
         else:
-            digraph.add_node('n%s' % (post.pk,), shape="none", width="0.0", height="0.0")
-        for relationship in post.outV:
-            if relationship.pos:
-                # The underscore after for edge names (eg e_1) is not completely arbitrary, dynagraph generates a random name for key=e1
-                digraph.add_edge('n%s' % (relationship.coming_from.pk,), 'n%s' % (relationship.going_to.pk,), 'e_%s' % (relationship.pk,), pos=str(relationship.pos))
+            digraph.add_node('n_%s' % (post.eid,), shape="none", width="0.0", height="0.0")
+        for relationship in post.outE():
+            if relationship.pos != None:
+                digraph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,), pos=str(relationship.pos))
             else:
-                digraph.add_edge('n%s' % (relationship.coming_from.pk,), 'n%s' % (relationship.going_to.pk,), 'e_%s' % (relationship.pk,))
+                digraph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,))
     return digraph
 
 def dot_to_database(dot):
     digraph = pygraphviz.AGraph(string=dot)
     for node in digraph.iternodes():
-        id = int(node[1:])
+        id = int(node[2:])
         split_pos = node.attr['pos'].split(',')
         x = float(split_pos[0])
         y = float(split_pos[1])
-        try:
-            post = Post.objects.get(id=id)
-        except Post.DoesNotExist:
-            error("During flushing dot to database post with id %s wasn't in database" % (id,))
-        else:
+        post = graph.posts.get(id)
+        if post:
             if post.x != x or post.y != y:
                 trace('dot_to_database: moving post with id %s to position %s, %s' % (id, x, y))
                 post.x = x
                 post.y = y
                 post.save()
+        else:
+            error("During flushing dot to database post with id %s wasn't in database" % (id,))
     for edge in digraph.iteredges():
         id = int(edge.attr['id'][2:])
         pos = edge.attr['pos']
@@ -174,15 +169,15 @@ class Dynagraph(object):
         trace("done: unlock")
 
     def insert_node(self, node_name):
-        self.communicate('insert node %s n%s [shape=none, width=0, height=0]\n' % (self.name, node_name)) # XXX: The algorithm takes into account the sizes of the nodes which is great except for the whole zooming issue
+        self.communicate('insert node %s n_%s [shape=circle, width=1, height=1]\n' % (self.name, node_name))
         trace("done: node")
 
     def insert_edge(self, edge_name, node_name1, node_name2):
-        self.communicate('insert edge %s e_%s n%s n%s\n' % (self.name, edge_name, node_name1, node_name2))
+        self.communicate('insert edge %s e_%s n_%s n_%s\n' % (self.name, edge_name, node_name1, node_name2))
         trace("done: edge")
 
     def delete_node(self, name):
-        self.communicate('delete node %s n%s\n' % (self.name, name))
+        self.communicate('delete node %s n_%s\n' % (self.name, name))
         trace("done: del")
 
     def process_remaining_output(self):
@@ -205,101 +200,25 @@ class Dynagraph(object):
         trace(self.to_modify)
         trace("done: trace to modify")
 
-class DynagraphChannel(asyncore.dispatcher):
-    def __init__(self, dynagraph, conn):
-        self.dynagraph = dynagraph
-        self.lock_level = 0
-        asyncore.dispatcher.__init__(self, conn)
-
-    def lock(self):
-        self.lock_level += 1
-        self.dynagraph.lock()
-
-    def unlock(self):
-        self.lock_level -= 1
-        self.dynagraph.unlock()
-
-    def handle_read(self):
-        try:
-            commands = self.recv(4096)
-            for command in commands.split('\n'):
-                if command:
-                    bits = command.split()
-                    {
-                        'l': self.lock,
-                        'u': self.unlock,
-                        'n': self.dynagraph.insert_node,
-                        'e': self.dynagraph.insert_edge,
-                        'd': self.dynagraph.delete_node,
-                        # These are commands to be used manually through nc or telnet or similar
-                        'o': self.dynagraph.process_remaining_output,
-                        'f': self.dynagraph.flush_positions_to_database,
-                        't': self.dynagraph.trace_graph,
-                        'm': self.dynagraph.trace_to_modify,
-                    }[bits[0]](*bits[1:])
-            if self.lock_level <= 0:
-                self.close()
-                self.dynagraph.move_posts_and_edges()
-        except Exception, e:
-            traceback.print_exc()
-
-    def close(self):
-        output("Closed connection from %s" % (self.addr,))
-        asyncore.dispatcher.close(self)
-
-    def handle_close(self):
-        pass
-
-    def writable(self):
-        return False
-
-class DynagraphServer(asyncore.dispatcher):
-    def __init__(self, ip, port, dynagraph):
-        asyncore.dispatcher.__init__(self)
-        trace("Serving on %s:%s" % (ip, port))
-        self.ip = ip
-        self.port = port
-        self.dynagraph = dynagraph
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        self.set_reuse_addr()
-        self.bind((ip, port))
-        self.listen(1024) # XXX: insert try..except here
-
-    def handle_accept(self):
-        conn, addr = self.accept()
-        output("Accepted connection from %s" % (addr,))
-        DynagraphChannel(self.dynagraph, conn)
-
-class LayoutConnection(object):
-    def __init__(self):
-        self.commands = []
-
-    def insert_node(self, id):
-        self.commands.append('n %s' % (id,))
-
-    def insert_edge(self, id, from_id, to_id):
-        self.commands.append('e %s %s %s' % (id, from_id, to_id))
-
-    def delete_node(self, id):
-        self.commands.append('d %s' % (id,))
-
-    def send(self):
-        # Maybe fork here to avoid holding up any http request since no reponse is neccesary.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('localhost', 9001))
-        if len(self.commands) > 1:
-            sock.sendall('l\n')
-            for command in self.commands:
-                sock.sendall(command + '\n')
-            sock.sendall('u\n')
-        elif len(self.commands) == 1:
-            sock.sendall(self.commands[0] + '\n')
-        sock.close()
 
 if __name__ == '__main__':
-    INTERFACE = ''
-    PORT = 9001
+    import zmq
+
+    context = zmq.Context()
+    socket = context.socket(zmq.PULL)
+    socket.bind(sys.argv > 1 ? sys.argv[1] : "tcp://localhost:5555")
+
     dynagraph = Dynagraph('L')
-    server = DynagraphServer(INTERFACE, PORT, dynagraph)
-    asyncore.loop()
+
+    while 1:
+        message = socket.recv()
+        dynagraph.lock()
+        for node_id in message['insert_node']:
+            dynagraph.insert_node(node_id)
+        for edge in message['insert_edge']:
+            dynagraph.insert_edge(edge['id'], edge['from_id'], edge['to_id'])
+        for node_id in message['delete_node']:
+            dynagraph.delete_node(node_id)
+        for edge_id in message['delete_edge']:
+            dynagraph.delete_edge(edge_id)
+        dynagraph.unlock()

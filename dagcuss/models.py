@@ -4,11 +4,10 @@ from bulbs.property import String, Integer, DateTime, Float
 from bulbs.utils import current_datetime
 from flaskext.login import UserMixin
 
-from settings import get_config
-
-config = get_config()
+from dagcuss import app
+from bulbs.rexster import Config
+config = Config(app.config['REXSTER_DB_URI'])
 graph = Graph(config)
-
 
 def element_to_model(e, model_cls):
     m = model_cls(e._client)
@@ -39,8 +38,8 @@ class Post(Node):
     at = DateTime(default=current_datetime, nullable=False)
     root = Integer(default=0, nullable=False)
 
-    x = Float(default=0, nullable=False)
-    y = Float(default=0, nullable=False)
+    x = Float(default=0, nullable=True)
+    y = Float(default=0, nullable=True)
 
     def parents(self):
         return sorted([element_to_model(e, Post) for e in self.inV("reply")],
@@ -97,6 +96,8 @@ class Reply(Relationship):
     # post_a 0    -> 1    post_b | if post_b.root
     # post_a 1..3 -> 0..* post_b | otherwise
     label = "reply"
+
+    pos = String(nullable=True)
 
 graph.add_proxy("users", User)
 graph.add_proxy("posts", Post)

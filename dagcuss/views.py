@@ -1,23 +1,18 @@
 #!/usr/bin/env python2
 
-from flask import (Flask, flash, redirect, request, render_template, url_for,
-                   abort)
+from flask import flash, redirect, request, render_template, url_for, abort
 from flaskext.markdown import Markdown
-app = Flask(__name__)
-from settings import add_settings
-add_settings(app)
-#app.jinja_options = {'ignore_errors': False}
-md = Markdown(app)
-
-from dagcuss.forms import PostForm, RegistrationForm, LoginForm
-from dagcuss.models import graph
 from flaskext.login import (LoginManager, login_required, login_user,
                             logout_user)
 
+from dagcuss import app
+from dagcuss.forms import PostForm, RegistrationForm, LoginForm
+from dagcuss.models import graph
+
+md = Markdown(app)
 login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.setup_app(app)
-
 
 @login_manager.user_loader
 def load_user(username):
