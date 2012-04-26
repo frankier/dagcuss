@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 import os, sys
 import zmq
+import blosc
+import cPickle as pickle
 import asyncsubprocess
 import pygraphviz
 import logging
 
 from dagcuss.models import graph
+from dagcuss import app
 
 tracelevel = 3
 
@@ -13,12 +16,22 @@ def _trace(threshold_level):
     def _inner_trace(*msg):
         if tracelevel >= threshold_level:
             msg = [(m if isinstance(m, str) else repr(m)) for m in msg if m != '']
-            print ','.join(msg)
+            print(','.join(msg))
     return _inner_trace
 
 output = _trace(1)
 error = _trace(2)
 trace = _trace(3)
+
+def send_obj(socket, obj, flags=0, protocol=-1):
+    p = pickle.dumps(obj, protocol)
+    z = blosc.compress(p, 1)
+    return socket.send(z, flags=flags)
+
+def recv_obj(socket, flags=0, protocol=-1):
+    z = socket.recv(flags)
+    p = blosc.decompress(z)
+    return pickle.loads(p)
 
 def database_to_dot():
     digraph = pygraphviz.AGraph(directed=True, strict=False)
@@ -37,31 +50,30 @@ def database_to_dot():
 def dot_to_database(dot):
     digraph = pygraphviz.AGraph(string=dot)
     for node in digraph.iternodes():
-        id = int(node[2:])
+        node_id = int(node[2:])
         split_pos = node.attr['pos'].split(',')
         x = float(split_pos[0])
         y = float(split_pos[1])
-        post = graph.posts.get(id)
+        post = graph.posts.get(node_id)
         if post:
             if post.x != x or post.y != y:
-                trace('dot_to_database: moving post with id %s to position %s, %s' % (id, x, y))
+                trace('dot_to_database: moving post with id %s to position %s, %s' % (node_id, x, y))
                 post.x = x
                 post.y = y
                 post.save()
         else:
-            error("During flushing dot to database post with id %s wasn't in database" % (id,))
+            error("During flushing dot to database post with id %s wasn't in database" % (node_id,))
     for edge in digraph.iteredges():
-        id = int(edge.attr['id'][2:])
+        edge_id = int(edge.attr['id'][2:])
         pos = edge.attr['pos']
-        try:
-            relationship = Relationship.objects.get(id=id)
-        except Relationship.DoesNotExist:
-            error("During flushing dot to database relationship with id %s wasn't in database" % (id,))
-        else:
+        relationship = graph.replies.get(edge_id)
+        if relationship:
             if relationship.pos != pos:
-                trace('dot_to_database: moving relationship with id %s to position %s' % (id, pos))
+                trace('dot_to_database: moving relationship with id %s to position %s' % (edge_id, pos))
                 relationship.pos = pos
                 relationship.save()
+        else:
+            error("During flushing dot to database relationship with id %s wasn't in database" % (edge_id,))
 
 def parse_dot_attributes(bits):
     collecting_attributes = False
@@ -99,7 +111,7 @@ def parse_dot_attributes(bits):
 
 class DynagraphProcess(object):
     def __init__(self):
-        self.process = asyncsubprocess.Popen('./dynagraph', stdin=asyncsubprocess.PIPE, stdout=asyncsubprocess.PIPE)
+        self.process = asyncsubprocess.Popen(app.config['DYNAGRAPH_BIN_PATH'], stdin=asyncsubprocess.PIPE, stdout=asyncsubprocess.PIPE)
 
     def communicate(self, command):
         self.process.send(command)
@@ -121,22 +133,16 @@ class Dynagraph(object):
         to_remove = []
         for command in self.to_modify:
             if command[0] == 'node':
-                try:
-                    post_to_modify = Post.objects.get(id=command[1])
-                except Post.DoesNotExist:
-                    pass
-                else:
+                post_to_modify = graph.posts.get(command[1])
+                if post_to_modify:
                     to_remove.append(command)
                     trace("moving post id %s to %s, %s" % (command[1], command[2], command[3]))
                     post_to_modify.x = command[2]
                     post_to_modify.y = command[3]
                     post_to_modify.save()
             elif command[0] == 'edge':
-                try:
-                    relation_to_modify = Relationship.objects.get(id=command[1])
-                except Relationship.DoesNotExist:
-                    pass
-                else:
+                relation_to_modify = graph.replies.get(command[1])
+                if relation_to_modify:
                     to_remove.append(command)
                     trace("moving edge id %s to %s" % (command[1], command[2]))
                     relation_to_modify.pos = command[2]
@@ -200,18 +206,27 @@ class Dynagraph(object):
         trace(self.to_modify)
         trace("done: trace to modify")
 
+def client(insert_node=(), insert_edge=(), delete_node=(), delete_edge=()):
+    context = zmq.Context()
+    socket = context.socket(zmq.PUSH)
+    socket.connect(app.config['DYNAGRAPH_ZMQ_CLIENT_ADDR'])
 
-if __name__ == '__main__':
-    import zmq
+    send_obj(socket, {
+        'insert_node': insert_node,
+        'insert_edge': insert_edge,
+        'delete_node': delete_node,
+        'delete_edge': delete_edge,
+    })
 
+def server():
     context = zmq.Context()
     socket = context.socket(zmq.PULL)
-    socket.bind(sys.argv > 1 ? sys.argv[1] : "tcp://localhost:5555")
+    socket.bind(app.config['DYNAGRAPH_ZMQ_SERVER_ADDR'])
 
     dynagraph = Dynagraph('L')
 
     while 1:
-        message = socket.recv()
+        message = recv_obj(socket)
         dynagraph.lock()
         for node_id in message['insert_node']:
             dynagraph.insert_node(node_id)
