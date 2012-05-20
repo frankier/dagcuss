@@ -1,1 +1,29 @@
-Bulbs has poor error handling eg Rexster can return 405 method not allowed when an incorrect id type is used but since it's not in RESPONSE_HANDLERS an obscure exception is thrown instead
+V0
+* Urls
+* Arrow heads
+* Hook links to highlight related post/curve + stay on page
+* Fix layout
+  * Compare dynagraph binaries
+  * Try modifying size
+  * Log entire dyangraph dialogue
+* Uniqueness on various things including users
+  * Bulbs
+* Database efficiency
+  * Manual indexing
+    - Write "Bulbs in practice" guide
+* Replies stay on page + better selection interface
+
+V1
+* Better presentation of logged in-ness
+* Page relatives
+* Order relatives
+
+V2
+* User history
+* Post versions
+
+
+Dependencies:
+
+* Bulbs has poor error handling eg Rexster can return 405 method not allowed when an incorrect id type is used but since it's not in RESPONSE_HANDLERS an obscure exception is thrown instead
+* Bulbs gremlin.groovy get_or_create_vertex_index has a race condition but it's probably due to Rexster's caching or some shit.

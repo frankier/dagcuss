@@ -1,0 +1,42 @@
+{% macro post_summary(post, loop) %}
+  <a href="{{ url_for('view_post', post_id=post.eid) }}">
+    {{ post }}
+  </a>
+{% endmacro %}
+
+<article id=post>
+  {% if post.title %}
+    <h2>{{ post.title }}</h2>
+  {% endif %}
+  {{ post.body|markdown }}
+  {{ post.at }}
+</article>
+
+{% if not post.root %}
+<div class=row>
+  <div class=span5>
+    <h3>Parents</h3>
+    <ol>
+      {% for parent in post.parents() %}
+        <li>{{ post_summary(parent, loop) }}
+      {% endfor %}
+    </ol>
+  </div>
+  <div class=span5>
+{% endif %}
+
+<h3>Children:</h3>
+<ol>
+  {% for child in post.children() %}
+    <li>{{ post_summary(child, loop) }}
+  {% endfor %}
+</ol>
+
+{% if not post.root %}
+  </div>
+</div>
+{% endif %}
+  
+<div class=form-actions>
+  <a class="btn btn-large btn-primary" href="{{ url_for('add_post') }}">Add post</a>
+</div>

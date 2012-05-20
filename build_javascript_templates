@@ -1,0 +1,1 @@
+python -m 'jasinja.compile' ./dagcuss/templates post_content.html > ./dagcuss/static/js/templates.js

@@ -1,0 +1,4 @@
+* Markdown.Converter.js
+* raphael.js
+in dagcuss/static/js/
+jasinja should be https://bitbucket.org/grimboy/jasinja but pip won't put that into the freezefile for some reason

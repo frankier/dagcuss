@@ -1,51 +1,17 @@
 {% extends "base.html" %}
-{% macro post_summary(post, loop) %}
-  <a href="{{ url_for('view_post', post_id=post.eid) }}">
-    {{ post }}
-  </a>
-{% endmacro %}
 {% block content %}
   <div class=container-fluid>
     <div class=row-fluid>
       <div class=span12>
         <div class=row-fluid>
           <div class=span4>
-            <canvas id=dagnav></canvas>
+            <div id=dagnav>&nbsp;</div>
           </div>
           <div class=span8>
-            <article id=post>
-              {% if post.title %}
-                <h2>{{ post.title }}</h2>
-              {% endif %}
-              {{ post.body|markdown }}
-              {{ post.timestamp }}
-            </article>
-            {% if not post.root %}
-            <div class=row>
-                <div class=span5>
-                  <h3>Parents</h3>
-                  <ol>
-                    {% for parent in post.parents() %}
-                      <li>{{ post_summary(parent, loop) }}
-                    {% endfor %}
-                  </ol>
-                </div>
-                <div class=span5>
-            {% endif %}
-                  <h3>Children:</h3>
-                  <ol>
-                    {% for child in post.children() %}
-                      <li>{{ post_summary(child, loop) }}
-                    {% endfor %}
-                  </ol>
-            {% if not post.root %}
-                </div>
-              </div>
-            {% endif %}
-              <div class=form-actions>
-                <a class="btn btn-large btn-primary" href="{{ url_for('add_post') }}">Add post</a>
-              </div>
-            </div>
+            {% include 'post_content.html' %}
+            <script>
+            static_post_id = {{ post.eid }};
+            </script>
           </div>
         </div>
       </div>

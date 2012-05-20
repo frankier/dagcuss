@@ -1,15 +1,18 @@
-#!/usr/bin/env python2
+import time
 
-from flask import flash, redirect, request, render_template, url_for, abort
+from flask import (flash, redirect, request, render_template, url_for, abort,
+                   jsonify)
 from flaskext.markdown import Markdown
 from flaskext.login import (LoginManager, login_required, login_user,
                             logout_user)
+from flask_debugtoolbar import DebugToolbarExtension
 
 from dagcuss import app
 from dagcuss.forms import PostForm, RegistrationForm, LoginForm
-from dagcuss.models import graph
+from dagcuss.models import graph, element_to_model, Reply
 from dagcuss import dynagraph
 
+toolbar = DebugToolbarExtension(app)
 md = Markdown(app)
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -22,6 +25,32 @@ def load_user(username):
         return users.next()
     except StopIteration:
         return None
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.context_processor
+def utility_processor():
+    from collections import defaultdict
+    url_for_map = defaultdict(lambda: [])
+    for rule in app.url_map.iter_rules():
+        param_count = len([param for param in rule._trace if param[0]])
+        bits = []
+        add = bits.append
+        for is_dynamic, data in rule._trace: # begins with underscore == naughty
+            if is_dynamic:
+                add('{{ %s }}' % (data,))
+            else:
+                add(data)
+        url_for_map[rule.endpoint].append((param_count, ''.join(bits).split('|', 1)[1]))
+    for endpoint in url_for_map:
+        url_for_map[endpoint] = [template for _, template in sorted(url_for_map[endpoint], reverse=True)]
+    return {
+        'url_for_data': url_for_map
+    }
 
 
 @app.route('/')
@@ -109,7 +138,66 @@ def contact():
     return render_template("contact.html")
 
 
-if __name__ == '__main__':
-    app.run(
-        debug=True
+@app.route("/api/by-tile/")
+def by_tile():
+    #import sys, hotshot
+    #prof = hotshot.Profile('tile-profile.log')
+    #prof.start()
+    posts = set()
+    replies = set()
+    tile_xs = request.args.getlist('tile_x', type=int)
+    tile_ys = request.args.getlist('tile_y', type=int)
+    tiles = zip(tile_xs, tile_ys)
+    if len(tile_xs) != len(tile_ys) or len(tile_xs) == 0:
+        abort(400)
+    for post in graph.posts.get_all(): # XXX: Bad, use an index
+        for tile in tiles:
+            if post.tile_x == tile[0] and post.tile_y == tile[1]:
+                posts.add(post)
+                for reply in post.inE("reply"):
+                    replies.add(element_to_model(reply, Reply))
+                for reply in post.outE("reply"):
+                    replies.add(element_to_model(reply, Reply))
+    result = jsonify(
+        posts=[{
+            'id': post.eid,
+            'root': post.root,
+            'title': post.title,
+            'x': post.x,
+            'y': post.y,
+            'at': time.mktime(post.at.timetuple()),
+            'parents': [parent.eid for parent in post.inE("reply")],
+            'children': [child.eid for child in post.outE("reply")],
+        } for post in posts],
+        replies=[{
+            'id': reply.eid,
+            'pos': reply.pos if reply.pos else [], # XXX: From, to
+            'in_id': reply.inV().eid,
+            'out_id': reply.outV().eid,
+        } for reply in replies]
+    )
+    #prof.stop()
+    return result
+
+
+@app.route("/api/post-detail/<int:post_id>/")
+def get_post_detail(post_id): 
+    post = graph.posts.get(post_id)
+    extra_post_ids = set(request.args.getlist('extra_posts', type=int))
+    extra_posts = []
+    for extra_post_id in extra_post_ids:
+        extra_post = graph.posts.get(extra_post_id)
+        if extra_post:
+            extra_posts.append(extra_post)
+    if not post or post.element_type != "post":
+        abort(404)
+    return jsonify(
+        posts=[{
+            'id': post.eid,
+            'body': post.body,
+        }] + [{
+            'id': extra_post.eid,
+            'title': extra_post.title,
+            'at': time.mktime(extra_post.at.timetuple()),
+        } for extra_post in extra_posts]
     )

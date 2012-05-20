@@ -1,55 +1,59 @@
-#!/usr/bin/env python
 import os, sys
 import zmq
 import blosc
 import cPickle as pickle
 import asyncsubprocess
 import pygraphviz
-import logging
+from logging import debug, error
+from flask import json
 
-from dagcuss.models import graph
+from dagcuss.models import graph, element_to_model, Reply
 from dagcuss import app
 
-tracelevel = 3
+# TODO: 
+# * Use logging module for logging
+# * Refine settings for logging
+# * See about factoring out some code from longer functions
+# * Pycrust, pep8
+# * Review code in Dynagraph class
 
-def _trace(threshold_level):
-    def _inner_trace(*msg):
-        if tracelevel >= threshold_level:
-            msg = [(m if isinstance(m, str) else repr(m)) for m in msg if m != '']
-            print(','.join(msg))
-    return _inner_trace
+dot_node_attrs = {
+    "shape": "circle",
+    "width": "18.0", # (radius + border) * 2
+    "height": "18.0"
+}
 
-output = _trace(1)
-error = _trace(2)
-trace = _trace(3)
-
-def send_obj(socket, obj, flags=0, protocol=-1):
-    p = pickle.dumps(obj, protocol)
+def send_obj(socket, obj, flags=0):
+    p = pickle.dumps(obj, -1)
     z = blosc.compress(p, 1)
     return socket.send(z, flags=flags)
 
-def recv_obj(socket, flags=0, protocol=-1):
+def recv_obj(socket, flags=0):
     z = socket.recv(flags)
     p = blosc.decompress(z)
     return pickle.loads(p)
 
 def database_to_dot():
-    digraph = pygraphviz.AGraph(directed=True, strict=False)
+    dot_graph = pygraphviz.AGraph(directed=True, strict=False)
     for post in graph.posts.get_all():
         if post.x != None and post.y != None:
-            digraph.add_node('n_%s' % (post.eid,), pos="%s,%s" % (post.x, post.y), shape="circle", width="1.0", height="1.0")
+            dot_graph.add_node('n_%s' % (post.eid,), pos="%s,%s" % (post.x, post.y), **dot_node_attrs)
         else:
-            digraph.add_node('n_%s' % (post.eid,), shape="none", width="0.0", height="0.0")
+            dot_graph.add_node('n_%s' % (post.eid,), **dot_node_attrs)
         for relationship in post.outE():
+            print "relationship.pos", relationship.pos
+            relationship = element_to_model(relationship, Reply)
             if relationship.pos != None:
-                digraph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,), pos=str(relationship.pos))
+                print "relationship.pos", relationship.pos
+                strpos = relationship.get_graphviz_pos()
+                dot_graph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,), pos=strpos)
             else:
-                digraph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,))
-    return digraph
+                dot_graph.add_edge('n_%s' % (relationship.outV().eid,), 'n_%s' % (relationship.inV().eid,), 'e_%s' % (relationship.eid,))
+    return dot_graph
 
 def dot_to_database(dot):
-    digraph = pygraphviz.AGraph(string=dot)
-    for node in digraph.iternodes():
+    dot_graph = pygraphviz.AGraph(string=dot)
+    for node in dot_graph.iternodes():
         node_id = int(node[2:])
         split_pos = node.attr['pos'].split(',')
         x = float(split_pos[0])
@@ -57,20 +61,20 @@ def dot_to_database(dot):
         post = graph.posts.get(node_id)
         if post:
             if post.x != x or post.y != y:
-                trace('dot_to_database: moving post with id %s to position %s, %s' % (node_id, x, y))
+                debug('dot_to_database: moving post with id %s to position %s, %s' % (node_id, x, y))
                 post.x = x
                 post.y = y
                 post.save()
         else:
             error("During flushing dot to database post with id %s wasn't in database" % (node_id,))
-    for edge in digraph.iteredges():
+    for edge in dot_graph.iteredges():
         edge_id = int(edge.attr['id'][2:])
-        pos = edge.attr['pos']
         relationship = graph.replies.get(edge_id)
+        relationship = element_to_model(relationship, Reply)
         if relationship:
-            if relationship.pos != pos:
-                trace('dot_to_database: moving relationship with id %s to position %s' % (edge_id, pos))
-                relationship.pos = pos
+            if relationship.get_graphviz_pos() != edge.attr['pos']:
+                debug('dot_to_database: moving relationship with id %s to position %s' % (edge_id, edge.attr['pos']))
+                relationship.set_graphviz_pos(edge.attr['pos'])
                 relationship.save()
         else:
             error("During flushing dot to database relationship with id %s wasn't in database" % (edge_id,))
@@ -108,6 +112,9 @@ def parse_dot_attributes(bits):
                     attributes[key] = attr
     return attributes
 
+def make_dot_attributes(attrs):
+    return "[%s]" % " ".join("%s=%s" % (pair[0], pair[1]) for pair in attrs.iteritems())
+
 
 class DynagraphProcess(object):
     def __init__(self):
@@ -136,55 +143,55 @@ class Dynagraph(object):
                 post_to_modify = graph.posts.get(command[1])
                 if post_to_modify:
                     to_remove.append(command)
-                    trace("moving post id %s to %s, %s" % (command[1], command[2], command[3]))
+                    debug("moving post id %s to %s, %s" % (command[1], command[2], command[3]))
                     post_to_modify.x = command[2]
                     post_to_modify.y = command[3]
                     post_to_modify.save()
             elif command[0] == 'edge':
-                relation_to_modify = graph.replies.get(command[1])
+                relation_to_modify = element_to_model(graph.replies.get(command[1]), Reply)
                 if relation_to_modify:
                     to_remove.append(command)
-                    trace("moving edge id %s to %s" % (command[1], command[2]))
-                    relation_to_modify.pos = command[2]
+                    debug("moving edge id %s to %s" % (command[1], command[2]))
+                    relation_to_modify.set_graphviz_pos(command[2])
                     relation_to_modify.save()
         for command in to_remove:
             self.to_modify.remove(command)
 
     def communicate(self, command):
         response = self.process.communicate(command)
-        trace("Response:", response)
+        debug("Response:", response)
         for response_command in response.split('\n'):
             bits = response_command.split()
             if len(bits) > 2 and bits[0] in ('insert', 'modify') and bits[1] in ('node', 'edge'):
                 attributes = parse_dot_attributes(bits)
                 pos = attributes['pos']
                 if bits[1] == 'node':
-                    id = int(bits[3][1:])
+                    node_id = int(bits[3][2:])
                     pos_split = pos.split(',')
-                    self.to_modify.append(('node', id, float(pos_split[0]), float(pos_split[1])))
+                    self.to_modify.append(('node', node_id, float(pos_split[0]), float(pos_split[1])))
                 elif bits[1] == 'edge':
-                    id = int(bits[3][2:])
-                    self.to_modify.append(('edge', id, pos))
+                    edge_id = int(bits[3][2:])
+                    self.to_modify.append(('edge', edge_id, pos))
 
     def lock(self):
         self.communicate('lock graph %s\n' % (self.name,))
-        trace("done: lock")
+        debug("done: lock")
 
     def unlock(self):
         self.communicate('unlock graph %s\n' % (self.name,))
-        trace("done: unlock")
+        debug("done: unlock")
 
     def insert_node(self, node_name):
-        self.communicate('insert node %s n_%s [shape=circle, width=1, height=1]\n' % (self.name, node_name))
-        trace("done: node")
+        self.communicate('insert node %s n_%s %s\n' % (self.name, node_name, make_dot_attributes(dot_node_attrs)))
+        debug("done: node")
 
     def insert_edge(self, edge_name, node_name1, node_name2):
         self.communicate('insert edge %s e_%s n_%s n_%s\n' % (self.name, edge_name, node_name1, node_name2))
-        trace("done: edge")
+        debug("done: edge")
 
     def delete_node(self, name):
         self.communicate('delete node %s n_%s\n' % (self.name, name))
-        trace("done: del")
+        debug("done: del")
 
     def process_remaining_output(self):
         self.process.communicate('')
@@ -194,17 +201,17 @@ class Dynagraph(object):
         response_lines = self.process.communicate('request graph %s\n' % (self.name,)).split('\n')
         dot = '\n'.join(response_lines[1:]) # first line is 'fulfil graph L'
         dot_to_database(dot)
-        trace("done: flush positions to database")
+        debug("done: flush positions to database")
 
     def trace_graph(self):
         self.process_remaining_output()
-        trace(self.process.communicate('request graph %s\n' % (self.name,)))
-        trace("done: trace graph")
+        debug(self.process.communicate('request graph %s\n' % (self.name,)))
+        debug("done: trace graph")
 
     def trace_to_modify(self):
         self.process_remaining_output()
-        trace(self.to_modify)
-        trace("done: trace to modify")
+        debug(self.to_modify)
+        debug("done: trace to modify")
 
 def client(insert_node=(), insert_edge=(), delete_node=(), delete_edge=()):
     context = zmq.Context()
@@ -236,4 +243,5 @@ def server():
             dynagraph.delete_node(node_id)
         for edge_id in message['delete_edge']:
             dynagraph.delete_edge(edge_id)
+        dynagraph.move_posts_and_edges()
         dynagraph.unlock()
