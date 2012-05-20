@@ -13,7 +13,6 @@ argparse==1.2.1
 blinker==1.2
 blosc==1.0.3
 httplib2==0.7.4
-jasinja==0.5.1
 matplotlib==1.1.0
 networkx==1.6
 numpy==1.6.1
@@ -25,3 +24,6 @@ simplejson==2.4.0
 six==1.1.0
 ujson==1.18
 wsgiref==0.1.2
+numpy==1.6.2
+-e git+https://github.com/espeed/bulbs.git@4792a82857c6d5b8e31588005a5366dec5eb0c9f#egg=bulbs-dev
+-e hg+https://bitbucket.org/grimboy/jasinja@bcf385c5fac9#egg=jasinja
