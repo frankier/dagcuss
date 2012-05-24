@@ -1,5 +1,9 @@
 {% macro post_summary(post, loop) %}
-  <a href="{{ url_for('view_post', post_id=post.eid) }}">
+  {% if post.root %}
+    <a href="{{ url_for('view_post') }}">
+  {% else %}
+    <a href="{{ url_for('view_post', post_id=post.eid) }}">
+  {% endif %}
     {{ post }}
   </a>
 {% endmacro %}
@@ -16,7 +20,7 @@
 <div class=row>
   <div class=span5>
     <h3>Parents</h3>
-    <ol>
+    <ol id=parents>
       {% for parent in post.parents() %}
         <li>{{ post_summary(parent, loop) }}
       {% endfor %}
@@ -26,7 +30,7 @@
 {% endif %}
 
 <h3>Children:</h3>
-<ol>
+<ol id=children>
   {% for child in post.children() %}
     <li>{{ post_summary(child, loop) }}
   {% endfor %}

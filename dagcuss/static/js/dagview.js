@@ -36,7 +36,6 @@ Jasinja.templates['post_content.html'].macros.url_for = function(ctx, tmpl, name
 }
 
 Jasinja.filters.markdown = function(text) {
-    //console.log('marking down', text);
     return converter.makeHtml(text);
 }
 
@@ -70,9 +69,29 @@ Backbone.sync = function(method, model, options) {
     }
 
     params = _.defaults(options, params)
-    console.log(params);
     return $.ajax(params);
 };
+
+var DAGRouter = Backbone.Router.extend({
+    routes: {
+        "":        "post",
+        ":post_id/":  "post"
+    },
+
+    post: function(post_id) {
+        var post;
+        if (post_id === undefined) {
+            post = posts.find(function(post) {
+                return post.get('root');
+            })
+        } else {
+            post = posts.get(post_id);
+        }
+        if (post) {
+            post.view.click();
+        }
+    }
+});
 
 var Post = Backbone.Model.extend({
     element_type: "post",
@@ -86,11 +105,9 @@ var Post = Backbone.Model.extend({
 });
 
 var TemplatePost = klass({
-    initialize: function(post_model, posts, replies) {
+    initialize: function(post_model) {
         _.bindAll(this);
         this.model = post_model;
-        this.posts = posts;
-        this.replies = replies;
         this.title = post_model.get('title');
         this.body = post_model.get('body');
         this.at = $.moment(post_model.get('at')* 1000).format('YYYY-MM-DD HH:mm:ss');
@@ -98,18 +115,26 @@ var TemplatePost = klass({
         this.eid = post_model.id;
     },
 
+    _relations: function(rel, dir) {
+        return _.chain(this.model.get(rel))
+            .map(function(id) {
+                return posts.get(replies.get(id).get(dir));
+            })
+            .sortBy(function(post) {
+                return post.at;
+            })
+            .map(function(post) {
+                return new TemplatePost(post);
+            })
+            .value();
+    },
+
     parents: function() {
-        var self = this;
-        return _.map(this.model.get('parents'), function(id) {
-            return new TemplatePost(self.posts.get(self.replies.get(id).get('out_id')));
-        });
+        return this._relations('parents', 'out_id');
     },
 
     children: function() {
-        var self = this;
-        return _.map(this.model.get('children'), function(id) {
-            return new TemplatePost(self.posts.get(self.replies.get(id).get('in_id')));
-        });
+        return this._relations('children', 'in_id');
     },
 
     toString: function() {
@@ -134,9 +159,7 @@ var Replies = Backbone.Collection.extend({
 });
 
 var Updater = klass({
-    initialize: function(posts, replies) {
-        this.posts = posts;
-        this.replies = replies;
+    initialize: function() {
     },
 
     byTile: function(args) {
@@ -144,12 +167,11 @@ var Updater = klass({
             url: '/api/by-tile/',
             data: args.data,
             success: function(resp) {
-                console.log(resp);
                 _.each(resp.posts, function(post) {
-                    this.posts.add(new Post(post));
+                    posts.add(new Post(post));
                 });
                 _.each(resp.replies, function(reply) {
-                    this.replies.add(new Reply(reply));
+                    replies.add(new Reply(reply));
                 });
                 args.success(resp);
             },
@@ -166,7 +188,6 @@ var Updater = klass({
                 extra_posts: args.extra_ids
             },
             success: function(resp) {
-                console.log(resp);
                 _.each(resp.posts, function(post_resp) {
                     if (post_resp.id === args.id) {
                         var post_model = this.posts.get(post_resp.id)
@@ -187,9 +208,6 @@ var Updater = klass({
 var PostView = Backbone.View.extend({
     initialize: function(args) {
         _.bindAll(this);
-        this.posts = this.options.posts;
-        this.replies = this.options.replies;
-        this.updater = this.options.updater;
         this.model.view = this;
     },
 
@@ -198,56 +216,69 @@ var PostView = Backbone.View.extend({
             .attr("fill", "#f00")
             .hover(this.hoverIn, this.hoverOut)
             .click(this.click);
-        if (this.model.id === this.posts.current) {
+        if (this.model.id === posts.current) {
             this.startCurrent();
         }
     },
 
     hoverIn: function(evt) {
-        if (this.model.id !== this.posts.current) {
+        if (this.model.id !== posts.current) {
             this.circle.attr("fill", "#a00");
         }
     },
 
     hoverOut: function(evt) {
-        if (this.model.id !== this.posts.current) {
+        if (this.model.id !== posts.current) {
             this.circle.attr("fill", "#f00");
         }
     },
 
     click: function(evt) {
         var self = this;
-        console.log('click');
-        this.updater.postDetail({
-            success: this.makeCurrent,
-            id: this.model.id,
-            extra_ids: _.difference(_.union(
-                _.map(this.model.get('parents'), function(parent) {
-                    return self.replies.get(parent).get('out_id')
-                }),
-                _.map(this.model.get('children'), function(child) {
-                    return self.replies.get(child).get('in_id')
-                })), this.posts.map(function(model) {
-                    return model.id;
-                }))
-        });
+        if (!this.model.body) {
+            updater.postDetail({
+                success: this.makeCurrent,
+                id: this.model.id,
+                extra_ids: _.difference(_.union(
+                    _.map(this.model.get('parents'), function(parent) {
+                        return replies.get(parent).get('out_id')
+                    }),
+                    _.map(this.model.get('children'), function(child) {
+                        return replies.get(child).get('in_id')
+                    })), posts.map(function(model) {
+                        return model.id;
+                    }))
+            });
+        } else {
+            this.makeCurrent();
+        }
     },
 
     makeCurrent: function() {
         var self = this;
-        if (this.posts.current) {
-            var oldCurrentView = this.posts.get(this.posts.current).view;
+        if (posts.current) {
+            var oldCurrentView = posts.get(posts.current).view;
             oldCurrentView.endCurrent();
         }
-        this.posts.current = this.model.id;
-        this.startCurrent();
+        if (!this.model.get('root')) {
+            dagRouter.navigate(this.model.id + "/");
+        } else {
+            dagRouter.navigate("");
+        }
+        posts.current = this.model.id;
         var new_content = Jasinja.templates['post_content.html'].render({
-            post: new TemplatePost(this.model, this.posts, this.replies)
+            post: new TemplatePost(this.model)
         });
         $('#post').parent().html(new_content);
+        this.startCurrent();
     },
 
     startCurrent: function() {
+        $('#post').parent().find('ol#parents a:link, ol#children a:link').click(function(evt) {
+            evt.preventDefault();
+            console.log(evt);
+            dagRouter.navigate($(evt.currentTarget).attr('href'), {trigger: true});
+        });
         this.circle.attr("fill", "#000");
     },
 
@@ -278,7 +309,6 @@ var ReplyView = Backbone.View.extend({
                     }).value().join(" ");
             })
             .value().join(" C");
-        //console.log(pathCommand);
         this.path = this.el.path(pathCommand);
     }
 });
@@ -290,19 +320,15 @@ function pixelToTile(x) {
 var DAGView = Backbone.View.extend({
     el: $('#dagnav'),
 
-    initialize: function(args) {
+    initialize: function() {
         _.bindAll(this);
-        this.posts = this.options.posts;
-        this.replies = this.options.replies;
-        this.updater = this.options.updater;
         this.originX = 0;
         this.originY = -500;
         this.width = 500;
         this.height = 1000;
         this.cachedTiles = [];
         this.paper = new Raphael("dagnav", this.width, this.height);
-        this.posts.current = static_post_id;
-        console.log('this.posts.current', this.posts.current);
+        posts.current = static_post_id;
         this.update(); // TODO: "Bootstrap" instead
         $(this.paper.canvas).mousedown(this.dragStart).mouseup(this.dragEnd);
     },
@@ -335,11 +361,10 @@ var DAGView = Backbone.View.extend({
                 return _.isEqual(candidateTile, cachedTile);
             }));
         });
-        //console.log('newTiles', newTiles);
         if (_.size(newTiles) === 0) {
             return;
         }
-        this.updater.byTile({
+        updater.byTile({
             data: {
                 tile_x: _.map(newTiles, function(tile) {
                     return tile[0];
@@ -357,20 +382,17 @@ var DAGView = Backbone.View.extend({
 
     render: function() {
         var self = this;
-        this.posts.each(function(model) {
+        posts.each(function(model) {
             if (!model.drawn) {
                 var view = new PostView({
                     el: self.paper,
-                    model: model,
-                    posts: this.posts,
-                    replies: this.replies,
-                    updater: this.updater
+                    model: model
                 });
                 view.render();
                 model.drawn = true;
             }
         });
-        this.replies.each(function(model) {
+        replies.each(function(model) {
             if (!model.drawn) {
                 var view = new ReplyView({
                     el: self.paper,
@@ -383,14 +405,13 @@ var DAGView = Backbone.View.extend({
     }
 });
 
+var posts, replies, updater, dagView, dagRouter;
+
 $.domReady(function() {
-    console.log("domReady");
     posts = new Posts();
     replies = new Replies();
-    updater = new Updater(posts, replies);
-    dagView = new DAGView({
-        posts: posts,
-        replies: replies,
-        updater: updater
-    });
+    updater = new Updater();
+    dagView = new DAGView();
+    dagRouter = new DAGRouter();
+    Backbone.history.start({pushState: true});
 });
