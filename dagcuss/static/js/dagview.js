@@ -176,7 +176,8 @@ var Updater = klass({
                 args.success(resp);
             },
             error: function(resp) {
-                args.error(resp);
+                alert("There was an error contacting the server for more tiles.");
+                //args.error(resp);
             }
         });
     },
@@ -199,7 +200,8 @@ var Updater = klass({
                 args.success(resp);
             },
             error: function (resp) {
-                args.error(resp);
+                alert("There was an error contacting the server for post details.");
+                //args.error(resp);
             }
         });
     }
@@ -276,7 +278,6 @@ var PostView = Backbone.View.extend({
     startCurrent: function() {
         $('#post').parent().find('ol#parents a:link, ol#children a:link').click(function(evt) {
             evt.preventDefault();
-            console.log(evt);
             dagRouter.navigate($(evt.currentTarget).attr('href'), {trigger: true});
         });
         this.circle.attr("fill", "#000");
