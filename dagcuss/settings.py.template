@@ -1,0 +1,9 @@
+DEBUG = True
+BULBS_DEBUG = False
+SECRET_KEY = "testing"
+RECAPTCHA_PUBLIC_KEY = "<Insert here>"
+RECAPTCHA_PRIVATE_KEY = "<Insert here>"
+REXSTER_DB_URI = 'http://localhost:8182/graphs/dagcussdb'
+DYNAGRAPH_BIN_PATH = '/path/to/dynagraph'
+DYNAGRAPH_ZMQ_SERVER_ADDR = DYNAGRAPH_ZMQ_CLIENT_ADDR = 'ipc:///tmp/dynagraph'
+TILE_SIZE = 150.0

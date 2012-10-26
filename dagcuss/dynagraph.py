@@ -19,8 +19,8 @@ from dagcuss import app
 
 dot_node_attrs = {
     "shape": "circle",
-    "width": "18.0", # (radius + border) * 2
-    "height": "18.0"
+    "width": "30.0", # (radius + border) * 2
+    "height": "30.0"
 }
 
 def send_obj(socket, obj, flags=0):

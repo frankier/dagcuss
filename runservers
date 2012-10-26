@@ -1,0 +1,5 @@
+./runrexster &
+sleep 5
+python manage.py rundynagraph &
+sleep 1
+python manage.py runserver &

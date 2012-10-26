@@ -1,4 +1,41 @@
 DAGcuss
--------
+=======
 
-What do I look like? Your mother?
+From the about page
+-------------------
+
+What is it?
+Dagcuss is, in short, a forum based off a Directed Acyclical Graph, aka a DAG. This means that when you post a message and are choosing which post to reply to, you are not restricted to replying to only one post, but can in fact reply to multiple.
+
+Why?
+Flat/path based forums are terrible from an organisational perspective. When there are few messages, or you are content to read all the messages even as an increasing number of topics are juggled at once
+
+Fully-threaded/tree based fix this problem, but introduce a new one. Although paths of conversation by diverge, often they reconverge, yet the two paths are forever separate possibly even resulting in redundant posts for a very large thread.
+
+More info
+---------
+
+This isn't currently working (or rather, it's mostly working, but the killer feature of graph layout is a bit broken) but I haven't worked on it for about a year and it doesn't seem like I'm going to get a chance to soon so I thought I should put it out there in case it's of interest to anyone. If you do do some work on it, please let me know how it goes.
+
+Laying out arbitrary DAGs in a way usable by humans is hard. Anyone who has got far enough into a graph theory course to encounter the concept of planarity probably has some appreciation of why this might be. The aditional constraints of doing it both while preserving overall shape over time and doing so "on-line" (as in only having knowlege past states, not future ones, aka causality) make it harder but dynagraph supposedly does a good job. It was my intention to see how such a forum would be used in real life and then try and constrain the DAG to something easier to lay out (but is still not a tree). Actually in the current version there is already the (totally artificial) constraint of any post only having 3 parents.
+
+Running it
+----------
+
+You'll need bulbs, rexster (which comes with orientdb), flask, some flask extensions and dynagraph. I've added the client side requirements to the respository even though it's not great practice to make getting started a little easier. Then copy settings.py.template to settings.py and fill them in as appropriate.
+
+DAGcuss - A DAG based forum
+Copyright (C) 2012  Frankie Robertson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
